@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#111217">
+  <meta name="description" content="有人以你的名字加入了群組。一個可以自由打字的深夜聊天恐怖故事。">
+  <meta property="og:title" content="群組裡的第六個人 / The Sixth Member">
+  <meta property="og:description" content="你剛才那句話，是誰先送出的？">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/threads-cover.png">
+  <meta property="og:image:width" content="1672">
+  <meta property="og:image:height" content="941">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>群組裡的第六個人</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js" defer></script>
+  <script src="i18n.js" defer></script>
+  <script src="story-engine.js" defer></script>
+  <script src="public-names.js" defer></script>
+  <script src="name-guard.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <article class="phone" aria-label="The Sixth Member">
+      <header class="statusbar">
+        <span class="clock" id="clock">02:17</span>
+        <div class="status-actions">
+          <button id="sound-toggle" type="button" aria-pressed="true" data-i18n="sound.on">聲音：開</button>
+          <button id="language-toggle" type="button" aria-label="Switch to English">EN</button>
+          <span class="battery" aria-hidden="true"></span>
+        </div>
+      </header>
+
+      <section class="screen intro-screen" id="intro-screen">
+        <div class="intro-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <p class="kicker">PRIVATE GROUP / 02:17</p>
+        <h1><span data-i18n="intro.titleOne">群組裡的</span><br><em data-i18n="intro.titleTwo">第六個人</em></h1>
+        <p class="intro-copy" data-i18n="intro.copy">有人以你的名字加入了群組。\n而其他人，好像更相信牠。</p>
+        <form id="start-form" class="form-card">
+          <label for="player-name" data-i18n="intro.playerLabel">你在群組裡的代號</label>
+          <div class="nickname-row">
+            <input id="player-name" readonly autocomplete="off" aria-describedby="nickname-note">
+            <button id="reroll-name" type="button" data-i18n="intro.reroll">換一個</button>
+          </div>
+          <p id="nickname-note" class="field-note" data-i18n="intro.nameNote">使用故事專屬代號，不使用真實人物姓名。</p>
+          <label for="group-name" data-i18n="intro.groupLabel">群組名稱</label>
+          <input id="group-name" maxlength="20" autocomplete="off" value="週末見面" data-i18n-placeholder="intro.groupPlaceholder">
+          <p id="device-status" class="field-note"></p>
+          <details class="context-box">
+            <summary data-i18n="context.title">加入大致城市（可選）</summary>
+            <label class="location-consent"><input id="location-consent" type="checkbox" aria-describedby="location-note"><span data-i18n="context.consent">允許 IPWhois 使用我的連線 IP 推估城市，加入故事。</span></label>
+            <p id="location-note" class="field-note" data-i18n="context.note">可跳過；不取得 GPS 或住址。城市可能因 VPN、行動網路而不準確。</p>
+            <p id="location-status" class="field-note" role="status"></p>
+          </details>
+          <button id="start-btn" class="primary-btn" type="submit"><span data-i18n="intro.start">進入聊天室</span><span aria-hidden="true">↗</span></button>
+        </form>
+        <p class="disclaimer" data-i18n="intro.disclaimer">單人虛構故事 · 約 4–7 分鐘\n訊息僅在此頁面處理；離開即清除。</p>
+      </section>
+
+      <section class="screen chat-screen hidden" id="chat-screen" aria-label="Chat">
+        <header class="chat-header">
+          <button id="exit-btn" class="back" type="button" data-i18n-aria="chat.exit" aria-label="離開故事">‹</button>
+          <div class="group-avatar" aria-hidden="true"><span>·</span><span>·</span><span>·</span></div>
+          <div class="group-title"><b id="group-title">週末見面</b><small id="member-count">5 位成員</small></div>
+          <span class="room-tag">02:17</span>
+        </header>
+        <p class="security-note" data-i18n="chat.note">虛構聊天室 · 此刻只有你在線上</p>
+        <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions" data-i18n-aria="chat.messages"></div>
+        <div id="typing" class="typing hidden" role="status"><i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i><span id="typing-name"></span></div>
+        <p id="chat-hint" class="chat-hint" aria-live="polite"></p>
+        <form id="chat-form" class="composer">
+          <input id="chat-input" maxlength="160" autocomplete="off" enterkeyhint="send" data-i18n-placeholder="chat.inputPlaceholder" data-i18n-aria="chat.inputAria" aria-label="輸入訊息">
+          <button id="send-message" class="send-message" type="submit" disabled data-i18n-aria="chat.send" aria-label="送出訊息">↑</button>
+        </form>
+      </section>
+
+      <section class="screen ending-screen hidden" id="ending-screen">
+        <div class="ending-signal" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p id="ending-kicker" class="kicker"></p>
+        <h2 id="ending-title" tabindex="-1"></h2>
+        <p id="ending-copy" class="ending-copy"></p>
+        <div id="ending-record" class="record"></div>
+        <div class="ending-actions">
+          <button id="share-btn" class="primary-btn" type="button" data-i18n="ending.share">分享紀錄</button>
+          <button id="invite-btn" class="secondary-btn" type="button" data-i18n="ending.invite">邀請朋友體驗</button>
+          <button id="restart-btn" class="text-btn" type="button" data-i18n="ending.restart">從頭再看一次</button>
+        </div>
+        <p id="share-status" class="field-note" role="status"></p>
+        <textarea id="share-fallback" class="hidden" readonly data-i18n-aria="share.copyAria"></textarea>
+        <form id="trace-form" class="trace-box hidden">
+          <label for="trace-message" class="trace-label" data-i18n="ending.traceLabel">留一句話給下一位訪客</label>
+          <textarea id="trace-message" maxlength="120" rows="2" data-i18n-placeholder="ending.tracePlaceholder"></textarea>
+          <label class="trace-consent"><input id="trace-consent" type="checkbox"><span data-i18n="ending.traceConsent">我同意這段匿名文字經審核後公開顯示在故事中。</span></label>
+          <button id="save-trace-btn" class="secondary-btn" type="submit" data-i18n="ending.traceButton">送出痕跡</button>
+          <p id="trace-status" class="field-note" role="status"></p>
+        </form>
+        <p class="ending-note" data-i18n="ending.note">你可以關掉這個頁面了。\n如果牠也允許的話。</p>
+      </section>
+      <div class="haunt-overlay" id="haunt-overlay" aria-hidden="true"><div class="haunt-shadow"></div><p data-i18n="hauntWarning">不要回頭</p></div>
+    </article>
+  </main>
+  <noscript>請啟用 JavaScript 以遊玩故事。 Enable JavaScript to play.</noscript>
+</body>
+</html>
