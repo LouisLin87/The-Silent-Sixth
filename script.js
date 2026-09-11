@@ -4,6 +4,8 @@
   const $ = (selector) => document.querySelector(selector);
   const E = window.StoryEngine;
   const G = window.NameGuard;
+  const audio = new window.Soundscape(window);
+  const motionPreference = window.matchMedia?.("(prefers-reduced-motion: reduce)");
   const t = (key, values) => window.I18N.t(key, values);
   const config = window.APP_CONFIG || {};
   const ui = {
@@ -15,6 +17,9 @@
     endingTitle: $("#ending-title"), endingKicker: $("#ending-kicker"), endingCopy: $("#ending-copy"), endingRecord: $("#ending-record"),
     shareStatus: $("#share-status"), shareFallback: $("#share-fallback"), traceForm: $("#trace-form"),
     traceMessage: $("#trace-message"), traceConsent: $("#trace-consent"), traceStatus: $("#trace-status"), saveTrace: $("#save-trace-btn"),
+    effects: $("#effects-toggle"), volume: $("#sound-volume"), music: $("#music-enabled"), audioStatus: $("#audio-status"),
+    card: $("#ending-image"), cardBox: $("#ending-image-box"), cardSave: $("#save-ending-image"), cardShare: $("#share-ending-image"), cardStatus: $("#ending-image-status"),
+    phone: $("#story-phone"),
   };
   const random = () => {
     if (!window.crypto?.getRandomValues) return Math.random();
@@ -23,7 +28,8 @@
   const state = {
     phase: "intro", alias: E.createAlias(random), name: "", group: "", run: null,
     history: [], score: { confront: 0, observe: 0, trust: 0 }, reactions: {}, waiting: false, composing: false,
-    sound: true, audio: null, ambient: null, lastKey: 0, result: null,
+    sound: true, result: null, reducedEffects: Boolean(motionPreference?.matches), tension: 0,
+    cardJob: null, cardUrl: null, cardBlob: null, cardKey: null,
     device: E.detectDevice(navigator), city: null, cityState: "skipped", cityRequest: null,
     traceClient: null, trace: null, traceRequest: null, lastTrace: 0,
     names: new G.NameTracker(), playerRows: [],
@@ -31,52 +37,31 @@
   const params = new URLSearchParams(window.location.search);
   if (params.get("lang") === "en") window.I18N.toggle();
 
-  function soundContext() {
-    if (!state.sound || document.hidden) return null;
-    const Audio = window.AudioContext || window.webkitAudioContext;
-    if (!Audio) return null;
-    try {
-      state.audio ??= new Audio();
-      if (state.audio.state === "suspended") void state.audio.resume().catch(() => {});
-      return state.audio;
-    } catch { return null; }
-  }
-  function tone(frequency, duration, volume, end, type = "sine") {
-    const ctx = soundContext();
-    if (!ctx) return;
-    try {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
-      if (end) osc.frequency.exponentialRampToValueAtTime(end, ctx.currentTime + duration);
-      gain.gain.setValueAtTime(.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + .008);
-      gain.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + duration);
-      osc.connect(gain).connect(ctx.destination);
-      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
-      osc.start(); osc.stop(ctx.currentTime + duration + .025);
-    } catch { /* Audio is optional; a restricted audio device must not stop the story. */ }
-  }
-  function keyClick(force = false) {
-    if (!force && Date.now() - state.lastKey < 65) return;
-    state.lastKey = Date.now();
-    tone(1150, .035, .007, 850, "square");
-  }
-  function stopAmbient() {
-    if (!state.ambient) return;
-    try { state.ambient.osc.stop(); state.ambient.osc.disconnect(); state.ambient.gain.disconnect(); } catch { /* already stopped */ }
-    state.ambient = null;
-  }
-  function startAmbient() {
-    if (state.ambient || state.phase !== "chat") return;
-    const ctx = soundContext();
-    if (!ctx) return;
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.frequency.value = 48; gain.gain.value = .004;
-    osc.connect(gain).connect(ctx.destination); osc.start();
-    state.ambient = { osc, gain };
-  }
+  function tone(...args) { audio.note(...args); }
+  function keyClick(force = false, kind = "type") { audio.key(kind, force); }
+  function stopAmbient() { audio.stopMusic(); }
+  function startAmbient() { if (state.phase === "chat") audio.startMusic(state.tension); }
   function updateSound() { ui.sound.textContent = t(state.sound ? "sound.on" : "sound.off"); ui.sound.setAttribute("aria-pressed", String(state.sound)); }
+  function updateEffects() {
+    document.body.classList.toggle("reduce-effects", state.reducedEffects);
+    ui.effects.textContent = t(state.reducedEffects ? "av.effectsOff" : "av.effectsOn");
+    ui.effects.setAttribute("aria-pressed", String(!state.reducedEffects));
+    ui.effects.disabled = Boolean(motionPreference?.matches);
+    if (state.reducedEffects) { ui.overlay.classList.remove("is-visible"); ui.phone.classList.remove("signal-slip"); }
+  }
+  function setTension(level) {
+    state.tension = level; audio.level = level;
+    ui.phone.classList.toggle("is-tense", level >= 1); ui.phone.classList.toggle("is-hunted", level >= 3);
+  }
+  async function signalSlip(run, shadow = false) {
+    run.assertActive(); audio.sting();
+    if (!state.reducedEffects) {
+      ui.phone.classList.add("signal-slip");
+      if (shadow) ui.overlay.classList.add("is-visible");
+    }
+    await run.delay(shadow ? 1400 : 850); run.assertActive();
+    ui.phone.classList.remove("signal-slip"); ui.overlay.classList.remove("is-visible");
+  }
 
   function speakerName(speaker) {
     return ["entity", "player"].includes(speaker) ? state.name : t(`story.${speaker}`);
@@ -151,12 +136,14 @@
       else if (step.kind === "redactNames") {
         // Only this run's chat bubbles change. The generated identity never changes.
         for (const { bubble, inspection } of state.playerRows) bubble.textContent = G.mask(inspection, t("identity.redacted"));
+        await signalSlip(run);
       }
       else if (step.kind === "phantom") await phantomKeys(run);
-      else if (step.kind === "calm") { if (step.value) stopAmbient(); else startAmbient(); }
-      else if (step.kind === "haunt") {
-        ui.overlay.classList.add("is-visible"); await run.delay(750); run.assertActive(); ui.overlay.classList.remove("is-visible");
-      } else if (step.kind === "ending") showEnding(step.value);
+      else if (step.kind === "tension") setTension(step.value);
+      else if (step.kind === "glitch") await signalSlip(run);
+      else if (step.kind === "calm") { if (step.value) { stopAmbient(); setTension(0); } else { setTension(3); startAmbient(); } }
+      else if (step.kind === "haunt") await signalSlip(run, true);
+      else if (step.kind === "ending") showEnding(step.value);
     }
   }
   async function perform(run, steps) {
@@ -165,7 +152,7 @@
       if (state.run === run && state.phase === "chat") setWaiting(true);
     } catch (error) {
       if (error.name === "AbortError" || state.run !== run) return;
-      run.cancel(); stopAmbient(); ui.typing.classList.add("hidden"); ui.overlay.classList.remove("is-visible");
+      run.cancel(); audio.stop(); setTension(0); ui.phone.classList.remove("signal-slip"); ui.typing.classList.add("hidden"); ui.overlay.classList.remove("is-visible");
       setWaiting(false); ui.hint.textContent = t("context.error");
     }
   }
@@ -205,6 +192,7 @@
     state.name = E.aliasText(state.alias, window.I18N.locale);
     state.group = E.cleanText(ui.group.value, 20) || t("defaults.group");
     state.phase = "chat"; state.run?.cancel(); state.run = new E.StoryRun(document);
+    clearEndingCard(); setTension(0); void audio.unlock();
     state.history = []; state.score = { confront: 0, observe: 0, trust: 0 }; state.reactions = {}; state.result = null;
     state.names = new G.NameTracker(); state.playerRows = [];
     ui.messages.replaceChildren(); ui.input.value = ""; state.composing = false;
@@ -224,6 +212,7 @@
     if (!message) return;
     const turn = state.history.length;
     if (turn >= 8) return;
+    keyClick(true, "send");
     const inspection = G.inspect(message);
     const alreadyRedacted = state.names.redacted;
     const nameReaction = state.names.accept(inspection);
@@ -242,15 +231,44 @@
   function showEnding(key) {
     const result = t(`results.${key}`);
     state.phase = "ending"; state.result = result; state.waiting = false; state.run?.cancel(); state.run = null;
-    stopAmbient(); ui.typing.classList.add("hidden"); ui.input.blur();
+    audio.stop(); setTension(0); ui.phone.classList.remove("signal-slip"); ui.typing.classList.add("hidden"); ui.input.blur();
     ui.endingKicker.textContent = result.kicker; ui.endingTitle.textContent = result.title;
     ui.endingCopy.textContent = result.copy; ui.endingRecord.textContent = result.record({ name: state.name });
     ui.chat.classList.add("hidden"); ui.ending.classList.remove("hidden"); ui.ending.scrollTop = 0;
     ui.endingTitle.focus({ preventScroll: true }); updateViewport();
+    void prepareEndingCard(key, result);
+  }
+  function clearEndingCard() {
+    state.cardJob = null; state.cardBlob = null; state.cardKey = null;
+    if (state.cardUrl) URL.revokeObjectURL(state.cardUrl);
+    state.cardUrl = null; ui.card.removeAttribute("src"); ui.cardSave.removeAttribute("href");
+    ui.cardBox.classList.add("hidden"); ui.cardShare.disabled = true; ui.cardStatus.textContent = "";
+  }
+  async function prepareEndingCard(key, result) {
+    clearEndingCard(); const job = {}; state.cardJob = job; ui.cardStatus.textContent = t("capture.preparing");
+    try {
+      const data = window.EndingCard.model(result, state.name, window.I18N.locale);
+      const canvas = window.EndingCard.draw(document.createElement("canvas"), data);
+      const blob = await window.EndingCard.toBlob(canvas);
+      if (state.cardJob !== job || state.phase !== "ending") return;
+      state.cardBlob = blob; state.cardKey = key; state.cardUrl = URL.createObjectURL(blob);
+      ui.card.src = state.cardUrl; ui.cardSave.href = state.cardUrl; ui.cardSave.download = `sixth-member-${key}.png`;
+      ui.card.alt = `${t("capture.alt")} ${result.title}`;
+      ui.cardBox.classList.remove("hidden"); ui.cardShare.disabled = false;
+      ui.cardStatus.textContent = t("capture.ready");
+    } catch { if (state.cardJob === job) ui.cardStatus.textContent = t("capture.failed"); }
+  }
+  async function shareEndingCard() {
+    if (!state.cardBlob || state.phase !== "ending") return;
+    try {
+      const file = new File([state.cardBlob], `sixth-member-${state.cardKey}.png`, { type: "image/png" });
+      if (!navigator.canShare?.({ files: [file] }) || !navigator.share) { ui.cardStatus.textContent = t("capture.fallback"); return; }
+      await navigator.share({ files: [file], title: t("documentTitle") });
+    } catch (error) { if (error.name !== "AbortError" && state.phase === "ending") ui.cardStatus.textContent = t("capture.fallback"); }
   }
   function leaveStory() {
     state.run?.cancel(); state.run = null; state.cityRequest?.abort(); state.cityRequest = null;
-    state.traceRequest?.abort(); state.traceRequest = null; stopAmbient();
+    state.traceRequest?.abort(); state.traceRequest = null; audio.stop(); clearEndingCard(); setTension(0); ui.phone.classList.remove("signal-slip");
     state.phase = "intro"; state.waiting = false; state.composing = false; state.history = []; state.score = { confront: 0, observe: 0, trust: 0 };
     state.reactions = {}; state.city = null; state.cityState = "skipped"; state.trace = null; state.result = null;
     state.names = new G.NameTracker(); state.playerRows = [];
@@ -266,7 +284,7 @@
     window.I18N.applyStatic(); ui.name.value = E.aliasText(state.alias, window.I18N.locale);
     ui.language.textContent = window.I18N.locale === "zh" ? "EN" : "繁中";
     ui.language.setAttribute("aria-label", window.I18N.locale === "zh" ? "Switch to English" : "切換繁體中文");
-    updateSound(); updateContextUI();
+    updateSound(); updateEffects(); updateContextUI();
   }
 
   // Optional reviewed traces: retain the existing Supabase schema and public config.
@@ -343,11 +361,14 @@
   $("#chat-form").addEventListener("submit", submitMessage);
   $("#exit-btn").addEventListener("click", leaveStory); $("#restart-btn").addEventListener("click", leaveStory);
   $("#reroll-name").addEventListener("click", reroll);
-  ui.input.addEventListener("input", () => { keyClick(); updateSend(); });
+  const inputSound = (event) => { keyClick(false, String(event.inputType || "").startsWith("delete") ? "delete" : "type"); };
+  ui.input.addEventListener("beforeinput", inputSound);
+  ui.input.addEventListener("input", (event) => { inputSound(event); updateSend(); });
   ui.input.addEventListener("compositionstart", () => { state.composing = true; updateSend(); });
   ui.input.addEventListener("compositionend", () => { state.composing = false; updateSend(); });
   ui.input.addEventListener("keydown", (event) => { if (event.key === "Enter" && (event.isComposing || event.keyCode === 229 || state.composing)) event.preventDefault(); });
-  ui.input.addEventListener("focus", updateViewport); ui.input.addEventListener("blur", updateViewport);
+  ui.input.addEventListener("focus", () => { void audio.unlock(); updateViewport(); }); ui.input.addEventListener("blur", updateViewport);
+  for (const input of [ui.input, ui.group, ui.traceMessage]) input.addEventListener("pointerdown", () => { void audio.unlock(); });
   ui.group.addEventListener("input", () => keyClick()); ui.traceMessage.addEventListener("input", () => keyClick());
   ui.cityConsent.addEventListener("change", () => { void locateCity(); });
   ui.language.addEventListener("click", () => {
@@ -357,15 +378,25 @@
   });
   ui.sound.addEventListener("click", () => {
     state.sound = !state.sound; updateSound();
-    if (state.sound) { tone(510, .055, .01, 420, "triangle"); startAmbient(); }
-    else { stopAmbient(); if (state.audio) void state.audio.suspend().catch(() => {}); }
+    audio.setEnabled(state.sound);
   });
+  ui.effects.addEventListener("click", () => { state.reducedEffects = !state.reducedEffects || Boolean(motionPreference?.matches); updateEffects(); });
+  motionPreference?.addEventListener?.("change", () => { if (motionPreference.matches) state.reducedEffects = true; updateEffects(); });
+  ui.volume.addEventListener("input", () => audio.setVolume(Number(ui.volume.value) / 100));
+  ui.music.addEventListener("change", () => audio.setMusic(ui.music.checked));
+  $("#test-sound").addEventListener("click", async () => {
+    state.sound = true; updateSound(); audio.setEnabled(true);
+    const ready = await audio.unlock();
+    if (ready) { keyClick(true); audio.note(440, .5, .09, 330, "sine", "effect", .2); }
+    ui.audioStatus.textContent = t(ready ? "av.ready" : "av.unavailable");
+  });
+  ui.cardShare.addEventListener("click", () => { void shareEndingCard(); });
   $("#share-btn").addEventListener("click", () => { void share(); });
   $("#invite-btn").addEventListener("click", () => { void share(true); });
   ui.traceForm.addEventListener("submit", saveTrace);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) { stopAmbient(); if (state.audio) void state.audio.suspend().catch(() => {}); }
-    else startAmbient();
+    if (document.hidden) audio.pause();
+    else if (state.phase === "chat") void audio.unlock();
   });
   window.addEventListener("pagehide", leaveStory);
   window.addEventListener("resize", updateViewport); window.visualViewport?.addEventListener("resize", updateViewport);

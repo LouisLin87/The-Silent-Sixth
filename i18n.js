@@ -5,6 +5,8 @@ window.I18N = (() => {
     zh: {
       documentTitle: "群組裡的第六個人", hauntWarning: "不要回頭",
       sound: { on: "聲音：開", off: "聲音：關" },
+      av: { effectsOn: "特效：開", effectsOff: "特效：減少", settings: "音效與音樂", volume: "遊戲音量", music: "播放懸疑背景音樂", test: "試聽按鍵聲", hint: "建議中低音量。沒有聲音時，請點試聽並檢查手機媒體音量。", ready: "已播放試聽。若仍聽不到，請檢查手機媒體音量或靜音模式。", unavailable: "瀏覽器未開啟聲音。可再次點試聽，或改用手機瀏覽器開啟；無聲也能遊玩。" },
+      capture: { heading: "你的結局截圖", save: "儲存結局圖片", share: "分享結局圖片", alt: "直式結局圖片：", preparing: "正在製作你的結局圖片…", ready: "1080 × 1920 直式圖片。可下載，或長按圖片儲存；不含聊天內容、城市或裝置資料。", fallback: "此瀏覽器不支援分享圖片，請按儲存圖片或長按上方圖片，再自行發布。", failed: "圖片暫時無法產生；結局文字仍完整保留，可使用手機截圖。" },
       defaults: { group: "週末見面" },
       intro: {
         titleOne: "群組裡的", titleTwo: "第六個人", copy: "有人以你的名字加入了群組。\n而其他人，好像更相信牠。",
@@ -89,6 +91,8 @@ window.I18N = (() => {
     en: {
       documentTitle: "The Sixth Member", hauntWarning: "DON'T TURN AROUND",
       sound: { on: "Sound: On", off: "Sound: Off" }, defaults: { group: "Weekend Plans" },
+      av: { effectsOn: "FX: On", effectsOff: "FX: Reduced", settings: "Sound & music", volume: "Game volume", music: "Play suspense music", test: "Test keyboard sound", hint: "Use a low or moderate volume. If silent, tap Test and check your phone's media volume.", ready: "Test played. If still silent, check your phone's media volume or silent mode.", unavailable: "Audio is unavailable. Try Test again or open in your phone's browser. You can still play without sound." },
+      capture: { heading: "Your ending screenshot", save: "Save ending image", share: "Share ending image", alt: "Portrait ending image:", preparing: "Creating your ending image…", ready: "1080 × 1920 portrait image. Download or long-press to save. No chat, city or device data included.", fallback: "Image sharing isn't supported here. Save or long-press the image above, then post it yourself.", failed: "Couldn't create the image. Your full ending is still here; you can take a phone screenshot." },
       intro: {
         titleOne: "THE SIXTH", titleTwo: "MEMBER", copy: "Someone joined using your name.\nYour friends seem to trust them more.",
         playerLabel: "Your name in this group", reroll: "Reroll", nameNote: "A fictional story alias. Real people's names cannot be entered.",

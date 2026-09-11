@@ -20,15 +20,18 @@
   <script src="story-engine.js" defer></script>
   <script src="public-names.js" defer></script>
   <script src="name-guard.js" defer></script>
+  <script src="soundscape.js" defer></script>
+  <script src="ending-card.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
   <main class="app-shell">
-    <article class="phone" aria-label="The Sixth Member">
+    <article class="phone" id="story-phone" aria-label="The Sixth Member">
       <header class="statusbar">
         <span class="clock" id="clock">02:17</span>
         <div class="status-actions">
           <button id="sound-toggle" type="button" aria-pressed="true" data-i18n="sound.on">聲音：開</button>
+          <button id="effects-toggle" type="button" aria-pressed="true" data-i18n="av.effectsOn">特效：開</button>
           <button id="language-toggle" type="button" aria-label="Switch to English">EN</button>
           <span class="battery" aria-hidden="true"></span>
         </div>
@@ -54,6 +57,14 @@
             <label class="location-consent"><input id="location-consent" type="checkbox" aria-describedby="location-note"><span data-i18n="context.consent">允許 IPWhois 使用我的連線 IP 推估城市，加入故事。</span></label>
             <p id="location-note" class="field-note" data-i18n="context.note">可跳過；不取得 GPS 或住址。城市可能因 VPN、行動網路而不準確。</p>
             <p id="location-status" class="field-note" role="status"></p>
+          </details>
+          <details class="context-box audio-options">
+            <summary data-i18n="av.settings">音效與音樂</summary>
+            <label for="sound-volume" data-i18n="av.volume">遊戲音量</label>
+            <input id="sound-volume" type="range" min="0" max="100" value="60" step="5">
+            <label class="location-consent"><input id="music-enabled" type="checkbox" checked><span data-i18n="av.music">播放懸疑背景音樂</span></label>
+            <button id="test-sound" type="button" class="secondary-btn" data-i18n="av.test">試聽按鍵聲</button>
+            <p id="audio-status" class="field-note" role="status" data-i18n="av.hint">建議中低音量。沒有聲音時，請點試聽並檢查手機媒體音量。</p>
           </details>
           <button id="start-btn" class="primary-btn" type="submit"><span data-i18n="intro.start">進入聊天室</span><span aria-hidden="true">↗</span></button>
         </form>
@@ -83,6 +94,13 @@
         <h2 id="ending-title" tabindex="-1"></h2>
         <p id="ending-copy" class="ending-copy"></p>
         <div id="ending-record" class="record"></div>
+        <section id="ending-image-box" class="ending-image-box hidden" aria-labelledby="ending-image-heading">
+          <h3 id="ending-image-heading" data-i18n="capture.heading">你的結局截圖</h3>
+          <img id="ending-image" width="1080" height="1920" alt="結局圖片">
+          <a id="save-ending-image" class="primary-btn" download="sixth-member-ending.png" data-i18n="capture.save">儲存結局圖片</a>
+          <button id="share-ending-image" class="secondary-btn" type="button" disabled data-i18n="capture.share">分享結局圖片</button>
+        </section>
+        <p id="ending-image-status" class="field-note" role="status"></p>
         <div class="ending-actions">
           <button id="share-btn" class="primary-btn" type="button" data-i18n="ending.share">分享紀錄</button>
           <button id="invite-btn" class="secondary-btn" type="button" data-i18n="ending.invite">邀請朋友體驗</button>

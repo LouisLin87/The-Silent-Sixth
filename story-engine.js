@@ -91,10 +91,10 @@
     const reaction = { ...say(["fear", "joke", "ordinary"].includes(intent) ? "ann" : "entity", replyKey(intent, reactionCount)), isReaction: true };
     switch (turn) {
       case 0: return [reaction, say("ann", "story.photo")];
-      case 1: return [reaction, say("entity", "story.delayedEcho", { message: memory }), event("phantom"), say("yao", "story.keys")];
+      case 1: return [event("tension", 1), reaction, say("entity", "story.delayedEcho", { message: memory }), event("phantom"), say("yao", "story.keys")];
       case 2: return [reaction, say("entity", device === "unknown" ? "story.deviceUnknown" : "story.device", { device }),
         say("entity", city ? "story.city" : "story.cityUnknown", { city: city?.city }), say("ann", "story.whichOne")];
-      case 3: return [say("entity", "story.stolenMemory", { message: memory }), say("sen", "story.ignoreNewcomer"),
+      case 3: return [event("tension", 2), event("glitch"), say("entity", "story.stolenMemory", { message: memory }), say("sen", "story.ignoreNewcomer"),
         ...(trace ? [say("system", "story.traceFound"), { speaker: "deleted", text: trace }] : []), reaction];
       case 4: return [say("entity", "story.leaving"), say("system", "story.left"), event("members", 5), event("calm", true),
         say("yao", "story.relief"), say("ann", "story.breakfast")];
