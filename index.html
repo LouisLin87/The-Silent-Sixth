@@ -39,7 +39,7 @@
 
       <section class="screen intro-screen" id="intro-screen">
         <div class="intro-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <p class="kicker">PRIVATE GROUP / 02:17</p>
+        <p class="kicker" data-i18n="haunt.chapter">異常紀錄 / 02:17</p>
         <h1><span data-i18n="intro.titleOne">群組裡的</span><br><em data-i18n="intro.titleTwo">第六個人</em></h1>
         <p class="intro-copy" data-i18n="intro.copy">有人以你的名字加入了群組。\n而其他人，好像更相信牠。</p>
         <form id="start-form" class="form-card">
@@ -68,7 +68,7 @@
           </details>
           <button id="start-btn" class="primary-btn" type="submit"><span data-i18n="intro.start">進入聊天室</span><span aria-hidden="true">↗</span></button>
         </form>
-        <p class="disclaimer" data-i18n="intro.disclaimer">單人虛構故事 · 約 4–7 分鐘\n訊息僅在此頁面處理；離開即清除。</p>
+        <p class="disclaimer" data-i18n="intro.disclaimer">單人虛構故事 · 約 5–9 分鐘\n訊息僅在此頁面處理；離開即清除。</p>
       </section>
 
       <section class="screen chat-screen hidden" id="chat-screen" aria-label="Chat">
@@ -76,7 +76,7 @@
           <button id="exit-btn" class="back" type="button" data-i18n-aria="chat.exit" aria-label="離開故事">‹</button>
           <div class="group-avatar" aria-hidden="true"><span>·</span><span>·</span><span>·</span></div>
           <div class="group-title"><b id="group-title">週末見面</b><small id="member-count">5 位成員</small></div>
-          <span class="room-tag">02:17</span>
+          <span class="room-tag" id="scene-status">連線中</span>
         </header>
         <p class="security-note" data-i18n="chat.note">虛構聊天室 · 此刻只有你在線上</p>
         <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions" data-i18n-aria="chat.messages"></div>
@@ -117,6 +117,10 @@
         </form>
         <p class="ending-note" data-i18n="ending.note">你可以關掉這個頁面了。\n如果牠也允許的話。</p>
       </section>
+      <aside class="phantom-notification hidden" id="phantom-notification" role="status" aria-live="polite" aria-atomic="true">
+        <small data-i18n="haunt.notificationLabel">遊戲內通知</small>
+        <b id="notification-name"></b><p id="notification-text"></p>
+      </aside>
       <div class="haunt-overlay" id="haunt-overlay" aria-hidden="true"><div class="haunt-shadow"></div><p data-i18n="hauntWarning">不要回頭</p></div>
     </article>
   </main>

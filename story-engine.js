@@ -27,6 +27,9 @@
 
   function classify(message) {
     const value = cleanText(message).toLowerCase().replace(/[’‘]/g, "'");
+    if (/^\/(?:system|admin|sudo|reset|debug)\b/iu.test(value) ||
+      /\b(ignore (?:all |previous )?(?:instructions|rules)|reveal (?:your )?(?:prompt|secrets)|system prompt|jailbreak)\b/iu.test(value) ||
+      /(?:忽略|無視|无视).{0,8}(?:指令|規則|规则)|(?:顯示|显示|洩漏|泄漏).{0,8}(?:系統提示|系统提示|密鑰|密钥)/u.test(value)) return "command";
     if (/(不要|別|不信|不相信|不准|滾|閉嘴|离开|離開|冒充|模仿|騙)/u.test(value) ||
       /\b(don't|do not|never|stop|leave|fake|liar|shut up|not you|won't)\b/u.test(value)) return "confront";
     if (/(害怕|好怕|救命|恐怖|help|scared|afraid|terrified)/u.test(value)) return "fear";
@@ -50,12 +53,13 @@
     return score.confront > score.observe ? "replaced" : "sixth";
   }
 
-  function typingPlan(text, random = Math.random) {
+  function typingPlan(text, random = Math.random, speaker = "ann") {
     const characters = Array.from(String(text));
     const units = characters.reduce((sum, char) => sum + (/\p{Script=Han}/u.test(char) ? 1 : .38), 0);
     const punctuation = (String(text).match(/[，。！？,.!?\n]/g) || []).length;
     const typing = Math.round(Math.min(8200, Math.max(1700, 1250 + units * 118 + punctuation * 130)) * (.92 + random() * .16));
-    return { read: Math.round(650 + random() * 1050), typing, hesitation: units > 20 && random() < .38 ? Math.round(600 + random() * 850) : 0 };
+    const pace = { ann: 1, yao: .88, sen: 1.12, entity: .93 }[speaker] || 1;
+    return { read: Math.round((650 + random() * 1050) * pace), typing: Math.min(8900, Math.max(1600, Math.round(typing * pace))), hesitation: units > 20 && random() < (speaker === "sen" ? .65 : .38) ? Math.round(600 + random() * 850) : 0 };
   }
 
   function detectDevice(nav = {}) {
@@ -82,29 +86,52 @@
     return `replies.${intent}.${count % 3}`;
   }
 
+  function storyProfile(history = []) {
+    const sent = history.slice(0, 8).map((message) => cleanText(message).toLowerCase());
+    let route = "presence";
+    for (const message of sent) {
+      if (/門外|敲門|門口|走廊|腳步|门外|敲门|门口|脚步|\b(door|knock|hallway|footsteps)\b/u.test(message)) { route = "door"; break; }
+      if (/鏡子|镜子|倒影|反光|螢幕|屏幕|黑屏|\b(mirror|reflection|screen)\b/u.test(message)) { route = "mirror"; break; }
+      if (/紀錄|記錄|记录|通知|時間|时间|已讀|已读|\b(record|history|timestamp|notification|archive)\b/u.test(message)) { route = "archive"; break; }
+    }
+    const latest = sent[sent.length - 1];
+    const repeats = latest ? sent.filter((message) => message === latest).length : 0;
+    // Return enums/counts only. Never collect drafts, sensors, precise location or new identity data.
+    return Object.freeze({ route, repeats });
+  }
+
   function chapter(turn, context) {
     const { history, score, device, city, intent, reactionCount, trace } = context;
     const memory = cleanText(history[0], 55);
     const latest = cleanText(history[history.length - 1], 70);
     const say = (speaker, key, values = {}) => ({ speaker, key, values });
     const event = (kind, value) => ({ kind, value });
-    const reaction = { ...say(["fear", "joke", "ordinary"].includes(intent) ? "ann" : "entity", replyKey(intent, reactionCount)), isReaction: true };
+    const profile = storyProfile(history);
+    const reactionKey = profile.repeats >= 2 && intent !== "command" ? `haunt.repeat.${profile.repeats % 2}` : replyKey(intent, reactionCount);
+    const reaction = { ...say(["fear", "joke", "ordinary"].includes(intent) && profile.repeats < 2 ? "ann" : "entity", reactionKey), isReaction: true };
+    const branch = (part, speaker = "entity") => say(speaker, `haunt.routes.${profile.route}.${part}`);
+    const notification = (speaker, key) => ({ kind: "notification", speaker, key });
     switch (turn) {
-      case 0: return [reaction, say("ann", "story.photo")];
-      case 1: return [event("tension", 1), reaction, say("entity", "story.delayedEcho", { message: memory }), event("phantom"), say("yao", "story.keys")];
-      case 2: return [reaction, say("entity", device === "unknown" ? "story.deviceUnknown" : "story.device", { device }),
-        say("entity", city ? "story.city" : "story.cityUnknown", { city: city?.city }), say("ann", "story.whichOne")];
-      case 3: return [event("tension", 2), event("glitch"), say("entity", "story.stolenMemory", { message: memory }), say("sen", "story.ignoreNewcomer"),
+      case 0: return [reaction, { ...say("sen", "haunt.warning"), id: "warning" }, event("pause", 3800),
+        event("retract", "warning"), say("sen", "haunt.notMe"), event("scene", "listening")];
+      case 1: return [event("tension", 1), reaction, say("entity", "story.delayedEcho", { message: memory }), event("phantom"),
+        branch("first", "yao"), ...(profile.route === "door" ? [event("knock")] : []), event("receipt", 7), say("ann", "haunt.seventhReader")];
+      case 2: return [reaction, notification("yao", "haunt.privateWarning"), say("entity", device === "unknown" ? "story.deviceUnknown" : "story.device", { device }),
+        say("entity", city ? "story.city" : "story.cityUnknown", { city: city?.city }), say("yao", "haunt.noPrivateMessage")];
+      case 3: return [event("tension", 2), event("scene", "imitating"), event("glitch"), say("entity", "story.stolenMemory", { message: memory }),
+        branch("second"), say("sen", "story.ignoreNewcomer"),
         ...(trace ? [say("system", "story.traceFound"), { speaker: "deleted", text: trace }] : []), reaction];
       case 4: return [say("entity", "story.leaving"), say("system", "story.left"), event("members", 5), event("calm", true),
-        say("yao", "story.relief"), say("ann", "story.breakfast")];
+        event("scene", "quiet"), say("yao", "story.relief"), say("ann", "story.breakfast")];
       case 5: return [say("ann", "story.breakfastReply", { message: latest }), say("sen", "story.goodnight"),
-        event("pause", 3600), say("system", "story.otherDevice"), event("calm", false), event("haunt")];
+        event("pause", 4200), notification("player", "haunt.fromTomorrow"), say("system", "story.otherDevice"),
+        event("calm", false), event("scene", "inside"), event("haunt")];
       case 6: return [event("phantom"), { speaker: "entity", text: latest, earlier: true },
-        say("system", "story.earlier"), say("yao", "story.realOne"), reaction];
+        say("system", "story.earlier"), branch("third", "yao"), event("receipt", 0), reaction];
       case 7: {
         const ending = endingKey(score);
-        return [say("sen", `story.final.${ending}`), say("entity", "story.finalEcho", { message: memory }),
+        return [say("sen", `story.final.${ending}`), branch("last"), event("scene", "sealed"),
+          say("system", "haunt.sealed"), say("entity", "story.finalEcho", { message: memory }),
           event("pause", 2300), event("ending", ending)];
       }
       default: throw new RangeError("Unknown chapter");
@@ -146,7 +173,7 @@
     }
   }
 
-  const engine = { cleanText, createAlias, aliasText, classify, scoreIntent, endingKey, typingPlan, detectDevice, coarseCity, replyKey, chapter, StoryRun };
+  const engine = { cleanText, createAlias, aliasText, classify, scoreIntent, endingKey, typingPlan, detectDevice, coarseCity, replyKey, storyProfile, chapter, StoryRun };
   if (typeof module !== "undefined" && module.exports) module.exports = engine;
   else root.StoryEngine = engine;
 })(typeof window !== "undefined" ? window : globalThis);

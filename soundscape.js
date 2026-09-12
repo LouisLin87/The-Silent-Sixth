@@ -66,6 +66,13 @@
       this.note(330, 1.25, .09, 110, "triangle");
       this.note(349.23, 1.05, .045, 146.83, "sine", "effect", .08);
     }
+    knock() {
+      // Three quiet, uneven taps; owned voices are stopped on mute, hide or exit.
+      for (const offset of [0, .42, 1.04]) {
+        this.note(185, .13, .10, 76, "triangle", "effect", offset);
+        this.note(520, .035, .025, 280, "sine", "effect", offset);
+      }
+    }
     startMusic(level = this.level) {
       this.level = Math.max(0, Math.min(3, Number(level) || 0)); this.wantMusic = true;
       if (!this.available() || !this.musicEnabled || this.timer !== null) return;

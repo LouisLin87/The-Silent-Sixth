@@ -20,6 +20,8 @@
     effects: $("#effects-toggle"), volume: $("#sound-volume"), music: $("#music-enabled"), audioStatus: $("#audio-status"),
     card: $("#ending-image"), cardBox: $("#ending-image-box"), cardSave: $("#save-ending-image"), cardShare: $("#share-ending-image"), cardStatus: $("#ending-image-status"),
     phone: $("#story-phone"),
+    scene: $("#scene-status"), notification: $("#phantom-notification"),
+    notificationName: $("#notification-name"), notificationText: $("#notification-text"),
   };
   const random = () => {
     if (!window.crypto?.getRandomValues) return Math.random();
@@ -32,7 +34,7 @@
     cardJob: null, cardUrl: null, cardBlob: null, cardKey: null,
     device: E.detectDevice(navigator), city: null, cityState: "skipped", cityRequest: null,
     traceClient: null, trace: null, traceRequest: null, lastTrace: 0,
-    names: new G.NameTracker(), playerRows: [],
+    names: new G.NameTracker(), playerRows: [], storyRows: new Map(), lastReceipt: null,
   };
   const params = new URLSearchParams(window.location.search);
   if (params.get("lang") === "en") window.I18N.toggle();
@@ -66,7 +68,7 @@
   function speakerName(speaker) {
     return ["entity", "player"].includes(speaker) ? state.name : t(`story.${speaker}`);
   }
-  function appendMessage({ speaker = "system", text, earlier = false }) {
+  function appendMessage({ speaker = "system", text, earlier = false, id }) {
     const atBottom = ui.messages.scrollHeight - ui.messages.scrollTop - ui.messages.clientHeight < 85;
     const article = document.createElement("article");
     const kind = speaker === "deleted" ? "entity" : ["system", "player", "entity"].includes(speaker) ? speaker : "person";
@@ -86,6 +88,12 @@
       time.textContent = `02:${String(17 + state.history.length - (earlier ? 1 : 0)).padStart(2, "0")}`;
       wrap.append(time);
     }
+    if (speaker === "player") {
+      const receipt = document.createElement("small"); receipt.className = "read-receipt";
+      receipt.textContent = t("haunt.sent"); receipt.setAttribute("role", "status");
+      wrap.append(receipt); state.lastReceipt = receipt;
+    }
+    if (id) state.storyRows.set(id, bubble);
     article.append(wrap); ui.messages.append(article);
     if (atBottom || speaker === "player") ui.messages.scrollTop = ui.messages.scrollHeight;
     if (kind === "entity") tone(182, .35, .022, 83);
@@ -110,7 +118,7 @@
     if (step.speaker === "system") {
       await run.delay(750); run.assertActive(); appendMessage({ ...step, text }); return;
     }
-    const pace = E.typingPlan(text);
+    const pace = E.typingPlan(text, Math.random, step.speaker);
     await run.delay(pace.read); run.assertActive();
     ui.typingName.textContent = t("chat.typing", { name: speakerName(step.speaker) });
     ui.typing.classList.remove("hidden");
@@ -127,12 +135,39 @@
     for (const wait of [230, 410, 290]) { await run.delay(wait); run.assertActive(); keyClick(true); }
     await run.delay(1100); run.assertActive(); ui.typing.classList.add("hidden");
   }
+  function clearHaunting() {
+    ui.notification.classList.add("hidden"); ui.notificationName.textContent = ""; ui.notificationText.textContent = "";
+    state.storyRows.clear(); state.lastReceipt = null;
+    ui.scene.textContent = t("haunt.scene.connected");
+  }
+  async function showNotification(run, step) {
+    run.assertActive();
+    const name = speakerName(step.speaker), message = translated(step);
+    // A labelled, in-page story prop. No OS notifications, permissions or private messages.
+    ui.notificationName.textContent = t("haunt.notificationTitle", { name });
+    ui.notificationText.textContent = message; ui.notification.classList.remove("hidden");
+    tone(520, .2, .035, 390, "triangle");
+    await run.delay(4500); run.assertActive();
+    ui.notification.classList.add("hidden");
+    appendMessage({ speaker: "system", text: t("haunt.notificationSaved", { name, message }) });
+  }
   async function execute(run, steps) {
     for (const step of steps) {
       run.assertActive();
       if (!step.kind) await typeThen(run, step);
       else if (step.kind === "members") memberCount(step.value);
       else if (step.kind === "pause") await run.delay(step.value);
+      else if (step.kind === "scene") ui.scene.textContent = t(`haunt.scene.${step.value}`);
+      else if (step.kind === "notification") await showNotification(run, step);
+      else if (step.kind === "retract") {
+        const bubble = state.storyRows.get(step.value);
+        if (bubble) { bubble.textContent = t("haunt.withdrawn"); bubble.classList.add("withdrawn"); }
+      }
+      else if (step.kind === "receipt" && state.lastReceipt) {
+        state.lastReceipt.textContent = step.value ? t("haunt.read", { count: step.value }) : t("haunt.unread");
+        state.lastReceipt.classList.add("anomalous");
+      }
+      else if (step.kind === "knock") audio.knock();
       else if (step.kind === "redactNames") {
         // Only this run's chat bubbles change. The generated identity never changes.
         for (const { bubble, inspection } of state.playerRows) bubble.textContent = G.mask(inspection, t("identity.redacted"));
@@ -152,7 +187,7 @@
       if (state.run === run && state.phase === "chat") setWaiting(true);
     } catch (error) {
       if (error.name === "AbortError" || state.run !== run) return;
-      run.cancel(); audio.stop(); setTension(0); ui.phone.classList.remove("signal-slip"); ui.typing.classList.add("hidden"); ui.overlay.classList.remove("is-visible");
+      run.cancel(); audio.stop(); clearHaunting(); setTension(0); ui.phone.classList.remove("signal-slip"); ui.typing.classList.add("hidden"); ui.overlay.classList.remove("is-visible");
       setWaiting(false); ui.hint.textContent = t("context.error");
     }
   }
@@ -192,7 +227,7 @@
     state.name = E.aliasText(state.alias, window.I18N.locale);
     state.group = E.cleanText(ui.group.value, 20) || t("defaults.group");
     state.phase = "chat"; state.run?.cancel(); state.run = new E.StoryRun(document);
-    clearEndingCard(); setTension(0); void audio.unlock();
+    clearEndingCard(); clearHaunting(); setTension(0); void audio.unlock();
     state.history = []; state.score = { confront: 0, observe: 0, trust: 0 }; state.reactions = {}; state.result = null;
     state.names = new G.NameTracker(); state.playerRows = [];
     ui.messages.replaceChildren(); ui.input.value = ""; state.composing = false;
@@ -229,9 +264,11 @@
     void perform(state.run, G.weave(chapter, nameReaction));
   }
   function showEnding(key) {
-    const result = t(`results.${key}`);
+    const base = t(`results.${key}`);
+    // Only authored route text reaches the public ending card, never the player's chat.
+    const result = { ...base, copy: `${base.copy}\n\n${t(`haunt.routes.${E.storyProfile(state.history).route}.afterword`)}` };
     state.phase = "ending"; state.result = result; state.waiting = false; state.run?.cancel(); state.run = null;
-    audio.stop(); setTension(0); ui.phone.classList.remove("signal-slip"); ui.typing.classList.add("hidden"); ui.input.blur();
+    audio.stop(); clearHaunting(); setTension(0); ui.phone.classList.remove("signal-slip"); ui.typing.classList.add("hidden"); ui.input.blur();
     ui.endingKicker.textContent = result.kicker; ui.endingTitle.textContent = result.title;
     ui.endingCopy.textContent = result.copy; ui.endingRecord.textContent = result.record({ name: state.name });
     ui.chat.classList.add("hidden"); ui.ending.classList.remove("hidden"); ui.ending.scrollTop = 0;
@@ -268,7 +305,7 @@
   }
   function leaveStory() {
     state.run?.cancel(); state.run = null; state.cityRequest?.abort(); state.cityRequest = null;
-    state.traceRequest?.abort(); state.traceRequest = null; audio.stop(); clearEndingCard(); setTension(0); ui.phone.classList.remove("signal-slip");
+    state.traceRequest?.abort(); state.traceRequest = null; audio.stop(); clearEndingCard(); clearHaunting(); setTension(0); ui.phone.classList.remove("signal-slip");
     state.phase = "intro"; state.waiting = false; state.composing = false; state.history = []; state.score = { confront: 0, observe: 0, trust: 0 };
     state.reactions = {}; state.city = null; state.cityState = "skipped"; state.trace = null; state.result = null;
     state.names = new G.NameTracker(); state.playerRows = [];
@@ -284,7 +321,7 @@
     window.I18N.applyStatic(); ui.name.value = E.aliasText(state.alias, window.I18N.locale);
     ui.language.textContent = window.I18N.locale === "zh" ? "EN" : "繁中";
     ui.language.setAttribute("aria-label", window.I18N.locale === "zh" ? "Switch to English" : "切換繁體中文");
-    updateSound(); updateEffects(); updateContextUI();
+    updateSound(); updateEffects(); updateContextUI(); ui.scene.textContent = t("haunt.scene.connected");
   }
 
   // Optional reviewed traces: retain the existing Supabase schema and public config.

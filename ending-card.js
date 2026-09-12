@@ -18,10 +18,11 @@
     for (const paragraph of String(text).split("\n")) {
       let line = "";
       // Preserve English words where possible, while allowing CJK and long words to wrap.
-      for (const token of paragraph.match(/[A-Za-z0-9’'-]+\s*|[^\x00-\x7F]|./gu) || []) {
-        if (line && ctx.measureText(line + token).width > width && !closing.test(token)) { lines.push(line.trimEnd()); line = ""; }
+      for (const token of paragraph.match(/[A-Za-z0-9’'-]+[,.!?;:)]*\s*|[^\x00-\x7F]|./gu) || []) {
+        if (line && ctx.measureText((line + token).trimEnd()).width > width && !closing.test(token)) { lines.push(line.trimEnd()); line = ""; }
         for (const char of Array.from(token)) {
           if (line && ctx.measureText(line + char).width > width) {
+            if (/\s/u.test(char)) { line += " "; continue; }
             const characters = Array.from(line);
             if (closing.test(char) && characters.length > 1) { const last = characters.pop(); lines.push(characters.join("").trimEnd()); line = last; }
             else { lines.push(line.trimEnd()); line = ""; }
